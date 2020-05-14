@@ -30,7 +30,7 @@ type AuthResp struct {
 
 func main() {
 	if version == "" {
-		version = "dev"
+		version = "dev.1"
 	}
 
 	var input concourse.CheckRequest

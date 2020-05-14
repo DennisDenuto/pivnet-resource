@@ -1,0 +1,7 @@
+#!/bin/bash
+export GOOS=linux
+export GOARCH=amd64
+
+go build -o cmd/check/check -mod=vendor cmd/check/*
+go build -o cmd/in/in -mod=vendor cmd/in/*
+go build -o cmd/out/out -mod=vendor cmd/out/*

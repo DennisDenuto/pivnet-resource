@@ -39,7 +39,7 @@ var (
 
 func main() {
 	if version == "" {
-		version = "dev"
+		version = "dev.1"
 	}
 
 	color.NoColor = false
