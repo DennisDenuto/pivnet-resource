@@ -73,7 +73,7 @@ func (o AccessTokenOrLegacyToken) AccessToken() (string, error) {
 
 		accessToken, err := tokenFetcher.GetToken()
 		if err != nil {
-			log.Panicf("Exiting with error: %s", err)
+			log.Printf("AccessToken error: %s", err)
 			return "", err
 		}
 		return accessToken, nil
@@ -123,7 +123,7 @@ func NewClient(
 	baseURL := fmt.Sprintf("%s%s", config.Host, apiVersion)
 
 	httpClient := &http.Client{
-		Timeout: 60 * time.Second,
+		Timeout: 10 * time.Minute,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: config.SkipSSLValidation,
