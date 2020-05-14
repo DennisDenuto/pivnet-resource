@@ -9,6 +9,8 @@ import (
 	"net/http"
 )
 
+const RETRY_ATTEMPTS = 3
+
 type Client struct {
 	client pivnet.Client
 }
@@ -20,34 +22,80 @@ func NewClient(token pivnet.AccessTokenService, config pivnet.ClientConfig, logg
 }
 
 func (c Client) GetFederationToken(productSlug string) (pivnet.FederationToken, error) {
-	return c.client.FederationToken.GenerateFederationToken(productSlug)
+	var value pivnet.FederationToken
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.FederationToken.GenerateFederationToken(productSlug)
+		if err == nil {
+			return value, err
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+	return value, err
 }
 
 func (c Client) ReleaseTypes() ([]pivnet.ReleaseType, error) {
-	return c.client.ReleaseTypes.Get()
+	var value []pivnet.ReleaseType
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ReleaseTypes.Get()
+		if err == nil {
+			return value, err
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+	return value, err
 }
 
 func (c Client) S3PrefixForProductSlug(productSlug string) (string, error) {
-	product, err := c.client.Products.Get(productSlug)
-	if err != nil {
-		return "", err
+	var value pivnet.Product
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.Products.Get(productSlug)
+		if err == nil {
+			return value.S3Directory.Path, err
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
 	}
 
-	return product.S3Directory.Path, nil
+	return "", err
 }
 
 func (c Client) ReleasesForProductSlug(productSlug string) ([]pivnet.Release, error) {
-	return c.client.Releases.List(productSlug)
+	var value []pivnet.Release
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.Releases.List(productSlug)
+		if err == nil {
+			return value, err
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+	return value, err
 }
 
 func (c Client) GetRelease(productSlug string, version string) (pivnet.Release, error) {
-	releases, err := c.client.Releases.List(productSlug)
+	var value []pivnet.Release
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.Releases.List(productSlug)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
 	if err != nil {
 		return pivnet.Release{}, err
 	}
 
 	var foundRelease pivnet.Release
-	for _, r := range releases {
+	for _, r := range value {
 		if r.Version == version {
 			foundRelease = r
 			break
@@ -58,115 +106,417 @@ func (c Client) GetRelease(productSlug string, version string) (pivnet.Release, 
 		return pivnet.Release{}, fmt.Errorf("release not found")
 	}
 
-	release, err := c.client.Releases.Get(productSlug, foundRelease.ID)
+
+	var releaseValue pivnet.Release
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		releaseValue, err = c.client.Releases.Get(productSlug, foundRelease.ID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
 	if err != nil {
 		return pivnet.Release{}, err
 	}
-	return release, nil
+	return releaseValue, nil
 }
 
 func (c Client) UpdateRelease(productSlug string, release pivnet.Release) (pivnet.Release, error) {
-	return c.client.Releases.Update(productSlug, release)
+	var value pivnet.Release
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.Releases.Update(productSlug, release)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) CreateRelease(config pivnet.CreateReleaseConfig) (pivnet.Release, error) {
-	return c.client.Releases.Create(config)
+	var value pivnet.Release
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.Releases.Create(config)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) DeleteRelease(productSlug string, release pivnet.Release) error {
-	return c.client.Releases.Delete(productSlug, release)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.Releases.Delete(productSlug, release)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return err
 }
 
 func (c Client) AddUserGroup(productSlug string, releaseID int, userGroupID int) error {
-	return c.client.UserGroups.AddToRelease(productSlug, releaseID, userGroupID)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.UserGroups.AddToRelease(productSlug, releaseID, userGroupID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) UserGroups(productSlug string, releaseID int) ([]pivnet.UserGroup, error) {
-	return c.client.UserGroups.ListForRelease(productSlug, releaseID)
+	var value []pivnet.UserGroup
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.UserGroups.ListForRelease(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) AcceptEULA(productSlug string, releaseID int) error {
-	return c.client.EULA.Accept(productSlug, releaseID)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.EULA.Accept(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) EULAs() ([]pivnet.EULA, error) {
-	return c.client.EULA.List()
+	var value []pivnet.EULA
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.EULA.List()
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) FindProductForSlug(slug string) (pivnet.Product, error) {
-	return c.client.Products.Get(slug)
+	var value pivnet.Product
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.Products.Get(slug)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) ProductFilesForRelease(productSlug string, releaseID int) ([]pivnet.ProductFile, error) {
-	return c.client.ProductFiles.ListForRelease(productSlug, releaseID)
+	var value []pivnet.ProductFile
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ProductFiles.ListForRelease(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) ProductFiles(productSlug string) ([]pivnet.ProductFile, error) {
-	return c.client.ProductFiles.List(productSlug)
+	var value []pivnet.ProductFile
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ProductFiles.List(productSlug)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) ProductFile(productSlug string, productFileID int) (pivnet.ProductFile, error) {
-	return c.client.ProductFiles.Get(productSlug, productFileID)
+	var value pivnet.ProductFile
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ProductFiles.Get(productSlug, productFileID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) ProductFileForRelease(productSlug string, releaseID int, productFileID int) (pivnet.ProductFile, error) {
-	return c.client.ProductFiles.GetForRelease(productSlug, releaseID, productFileID)
+	var value pivnet.ProductFile
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ProductFiles.GetForRelease(productSlug, releaseID, productFileID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) DeleteProductFile(productSlug string, releaseID int) (pivnet.ProductFile, error) {
-	return c.client.ProductFiles.Delete(productSlug, releaseID)
+	var value pivnet.ProductFile
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ProductFiles.Delete(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) CreateProductFile(config pivnet.CreateProductFileConfig) (pivnet.ProductFile, error) {
-	return c.client.ProductFiles.Create(config)
+	var value pivnet.ProductFile
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ProductFiles.Create(config)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) AddProductFile(productSlug string, releaseID int, productFileID int) error {
-	return c.client.ProductFiles.AddToRelease(productSlug, releaseID, productFileID)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.ProductFiles.AddToRelease(productSlug, releaseID, productFileID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) CreateFileGroup(config pivnet.CreateFileGroupConfig) (pivnet.FileGroup, error) {
-	return c.client.FileGroups.Create(config)
+	var value pivnet.FileGroup
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.FileGroups.Create(config)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) AddToFileGroup(productSlug string, fileGroupID int, productFileID int) error {
-	return c.client.ProductFiles.AddToFileGroup(productSlug, fileGroupID, productFileID)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.ProductFiles.AddToFileGroup(productSlug, fileGroupID, productFileID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) AddFileGroup(productSlug string, releaseID int, fileGroupID int) error {
-	return c.client.FileGroups.AddToRelease(productSlug, releaseID, fileGroupID)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.FileGroups.AddToRelease(productSlug, releaseID, fileGroupID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) DownloadProductFile(writer *download.FileInfo, productSlug string, releaseID int, productFileID int, progressWriter io.Writer) error {
-	return c.client.ProductFiles.DownloadForRelease(writer, productSlug, releaseID, productFileID, progressWriter)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.ProductFiles.DownloadForRelease(writer, productSlug, releaseID, productFileID, progressWriter)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) FileGroupsForRelease(productSlug string, releaseID int) ([]pivnet.FileGroup, error) {
-	return c.client.FileGroups.ListForRelease(productSlug, releaseID)
+	var value []pivnet.FileGroup
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.FileGroups.ListForRelease(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) ImageReferences(productSlug string) ([]pivnet.ImageReference, error) {
-	return c.client.ImageReferences.List(productSlug)
+	var value []pivnet.ImageReference
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ImageReferences.List(productSlug)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+
+	return value, err
 }
 
 func (c Client) ImageReferencesForRelease(productSlug string, releaseID int) ([]pivnet.ImageReference, error) {
-	return c.client.ImageReferences.ListForRelease(productSlug, releaseID)
+	var value []pivnet.ImageReference
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ImageReferences.ListForRelease(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) CreateImageReference(config pivnet.CreateImageReferenceConfig) (pivnet.ImageReference, error) {
-	return c.client.ImageReferences.Create(config)
+	var value pivnet.ImageReference
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ImageReferences.Create(config)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) GetImageReference(productSlug string, imageReferenceID int) (pivnet.ImageReference, error) {
-	return c.client.ImageReferences.Get(productSlug, imageReferenceID)
+	var value pivnet.ImageReference
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ImageReferences.Get(productSlug, imageReferenceID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) AddImageReference(productSlug string, releaseID int, imageReferenceID int) error {
-	return c.client.ImageReferences.AddToRelease(productSlug, releaseID, imageReferenceID)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.ImageReferences.AddToRelease(productSlug, releaseID, imageReferenceID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) DeleteImageReference(productSlug string, imageReferenceID int) (pivnet.ImageReference, error) {
-	return c.client.ImageReferences.Delete(productSlug, imageReferenceID)
+	var value pivnet.ImageReference
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ImageReferences.Delete(productSlug, imageReferenceID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) HelmChartReferences(productSlug string) ([]pivnet.HelmChartReference, error) {
@@ -194,35 +544,121 @@ func (c Client) DeleteHelmChartReference(productSlug string, helmChartReferenceI
 }
 
 func (c Client) ReleaseDependencies(productSlug string, releaseID int) ([]pivnet.ReleaseDependency, error) {
-	return c.client.ReleaseDependencies.List(productSlug, releaseID)
+	var value []pivnet.ReleaseDependency
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ReleaseDependencies.List(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) AddReleaseDependency(productSlug string, releaseID int, dependentReleaseID int) error {
-	return c.client.ReleaseDependencies.Add(productSlug, releaseID, dependentReleaseID)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.ReleaseDependencies.Add(productSlug, releaseID, dependentReleaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) DependencySpecifiers(productSlug string, releaseID int) ([]pivnet.DependencySpecifier, error) {
-	return c.client.DependencySpecifiers.List(productSlug, releaseID)
+	var value []pivnet.DependencySpecifier
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.DependencySpecifiers.List(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) CreateDependencySpecifier(productSlug string, releaseID int, dependentProductSlug string, specifier string) (pivnet.DependencySpecifier, error) {
-	return c.client.DependencySpecifiers.Create(productSlug, releaseID, dependentProductSlug, specifier)
+	var value pivnet.DependencySpecifier
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.DependencySpecifiers.Create(productSlug, releaseID, dependentProductSlug, specifier)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) ReleaseUpgradePaths(productSlug string, releaseID int) ([]pivnet.ReleaseUpgradePath, error) {
-	return c.client.ReleaseUpgradePaths.Get(productSlug, releaseID)
+	var value []pivnet.ReleaseUpgradePath
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.ReleaseUpgradePaths.Get(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) UpgradePathSpecifiers(productSlug string, releaseID int) ([]pivnet.UpgradePathSpecifier, error) {
-	return c.client.UpgradePathSpecifiers.List(productSlug, releaseID)
+	var value []pivnet.UpgradePathSpecifier
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.UpgradePathSpecifiers.List(productSlug, releaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) CreateUpgradePathSpecifier(productSlug string, releaseID int, specifier string) (pivnet.UpgradePathSpecifier, error) {
-	return c.client.UpgradePathSpecifiers.Create(productSlug, releaseID, specifier)
+	var value pivnet.UpgradePathSpecifier
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		value, err = c.client.UpgradePathSpecifiers.Create(productSlug, releaseID, specifier)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return value, err
 }
 
 func (c Client) AddReleaseUpgradePath(productSlug string, releaseID int, previousReleaseID int) error {
-	return c.client.ReleaseUpgradePaths.Add(productSlug, releaseID, previousReleaseID)
+	var err error
+
+	for i := 0; i < RETRY_ATTEMPTS; i++ {
+		err = c.client.ReleaseUpgradePaths.Add(productSlug, releaseID, previousReleaseID)
+		if err == nil {
+			break
+		}
+		fmt.Printf("Received error %s, retry attempt #%d", err.Error(), i)
+	}
+
+	return err
 }
 
 func (c Client) CreateRequest(method string, url string, body io.Reader) (*http.Request, error) {
